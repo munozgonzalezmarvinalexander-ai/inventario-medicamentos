@@ -1,209 +1,187 @@
 # 💊 Sistema de Inventario de Medicamentos
 
-Sistema completo y **100% gratuito** para llevar inventario de medicamentos.
-Funciona desde tu navegador, en tu propia laptop, **sin servicios mensuales** ni
-aplicaciones móviles. Los datos se guardan en un archivo **Excel local** que
-puedes abrir con Excel, LibreOffice o subir manualmente a OneDrive cuando
-quieras.
+Sistema web para gestión de inventario de medicamentos, diseñado para farmacias, clínicas y centros de salud que necesitan una solución local, sin dependencias en la nube ni costos mensuales.
+
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-3.0-black.svg)](https://flask.palletsprojects.com)
+[![openpyxl](https://img.shields.io/badge/openpyxl-3.1-green.svg)](https://openpyxl.readthedocs.io)
+[![License](https://img.shields.io/badge/Licencia-MIT-yellow.svg)](LICENSE)
 
 ---
 
-## 🚀 Instalación rápida en Windows (3 pasos)
+## ¿Qué problema resuelve?
 
-### 1. Instalar Python (una sola vez)
-
-1. Ir a https://www.python.org/downloads/
-2. Descargar **Python 3.10 o superior**.
-3. Ejecutar el instalador y **marcar la casilla "Add Python to PATH"**
-   antes de hacer clic en *Install*.
-
-### 2. Descargar este proyecto
-
-Descomprime la carpeta `inventario-medicamentos` en cualquier lugar de tu
-computadora (Escritorio, Documentos, etc.).
-
-### 3. Doble clic en `iniciar.bat`
-
-- La primera vez tardará 1–2 minutos en instalar las dependencias.
-- Después abrirá el sistema automáticamente en tu navegador en:
-  **http://localhost:5000**
-
-Listo. Eso es todo.
-
-> Para **detener** el sistema: cierra la ventana negra que se abrió,
-> o presiona `Ctrl + C` dentro de ella.
+Muchas farmacias y clínicas pequeñas llevan su inventario en hojas de Excel manuales o cuadernos. Este sistema digitaliza ese proceso con una interfaz web accesible desde el navegador, manteniendo los datos en un archivo `.xlsx` que el personal ya sabe manejar, sin necesidad de servidores remotos ni conexión a internet.
 
 ---
 
-## 🐧 Linux / macOS
+## Funcionalidades
+
+### Dashboard
+- Resumen en tiempo real: total de medicamentos, unidades en stock, bajo stock y agotados
+- Entradas y entregas del mes actual
+- Top 5 medicamentos más entregados
+- Alertas de bajo stock priorizadas
+
+### Inventario
+- CRUD completo de medicamentos
+- Búsqueda instantánea por nombre u observación
+- Indicadores de estado: **OK / Bajo stock / Agotado**
+- Stock mínimo configurable por medicamento
+
+### Entradas y Salidas
+- Registro de lotes recibidos (suma automática si el medicamento ya existe)
+- Entrega con confirmación obligatoria y bloqueo si no hay stock suficiente
+- Trazabilidad completa: fecha, cantidad, persona que recibe, observaciones
+
+### Reportes y Exportación
+- Filtros por rango de fechas y nombre de medicamento
+- Gráfico de entregas por mes
+- Exportar a `.xlsx` con un clic (toda la base de datos o solo el reporte filtrado)
+
+---
+
+## Decisiones técnicas
+
+### Excel como base de datos
+El almacenamiento en `.xlsx` es una decisión deliberada para este contexto, no una limitación:
+
+- El personal objetivo ya domina Excel y puede abrir el archivo directamente para auditorías
+- Permite respaldos triviales (copiar el archivo a un USB o Google Drive)
+- Sin instalación de motor de base de datos, lo que reduce la fricción en entornos sin soporte técnico
+- `openpyxl` garantiza compatibilidad total con Excel y LibreOffice
+
+Para un contexto de múltiples usuarios simultáneos o mayor volumen, la arquitectura se migraría a SQLite o PostgreSQL con mínimos cambios en la capa de acceso a datos.
+
+### Thread-safety con `threading.Lock`
+Flask puede recibir varias peticiones al mismo tiempo. Dado que `openpyxl` no es thread-safe para escrituras concurrentes sobre el mismo archivo, se usa un `Lock` global (`excel_lock`) que garantiza que solo una petición escriba el Excel a la vez, previniendo corrupción de datos:
+
+```python
+with excel_lock:
+    wb = load_workbook(EXCEL_FILE)
+    # ... modificaciones ...
+    wb.save(EXCEL_FILE)
+```
+
+### API REST + SPA
+El backend expone una API REST con Flask y el frontend es una Single Page Application en JavaScript vanilla. Esta separación permite en el futuro reemplazar el frontend por React o Vue sin tocar el backend, o consumir la API desde una app móvil.
+
+### Exportación en memoria
+Los reportes Excel se generan con `openpyxl` y se sirven como `BytesIO` sin escribir archivos temporales en disco, lo que evita problemas de permisos y limpieza:
+
+```python
+buffer = io.BytesIO()
+wb_out.save(buffer)
+buffer.seek(0)
+return send_file(buffer, as_attachment=True, ...)
+```
+
+---
+
+## Arquitectura
+
+```
+inventario-medicamentos/
+├── app.py                  # Backend Flask: API REST + lógica de negocio
+├── requirements.txt        # Dependencias Python (Flask + openpyxl)
+├── iniciar.bat             # Lanzador Windows (un clic)
+├── iniciar.sh              # Lanzador Linux / macOS
+│
+├── data/
+│   └── inventario.xlsx     # Base de datos (se crea al primer inicio)
+│
+├── templates/
+│   └── index.html          # SPA: estructura HTML
+│
+└── static/
+    ├── css/styles.css      # Estilos
+    └── js/script.js        # Lógica del navegador (fetch API)
+```
+
+### Endpoints de la API
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/api/inventario` | Lista todos los medicamentos y stock |
+| GET | `/api/dashboard` | Métricas del dashboard |
+| POST | `/api/entradas` | Registrar entrada de medicamento |
+| GET | `/api/entradas` | Historial de entradas |
+| POST | `/api/salidas` | Registrar entrega |
+| GET | `/api/salidas` | Historial de salidas |
+| GET | `/api/reportes/por-mes` | Entregas agrupadas por mes |
+| GET | `/api/reportes/top-entregados` | Ranking de medicamentos más entregados |
+| GET | `/api/exportar` | Descargar base de datos completa como `.xlsx` |
+| GET | `/api/exportar/reporte` | Descargar reporte filtrado como `.xlsx` |
+| DELETE | `/api/inventario/<nombre>` | Eliminar medicamento |
+
+---
+
+## Stack
+
+| Capa | Tecnología |
+|------|------------|
+| Backend | Python 3.10 + Flask 3.0 |
+| Almacenamiento | openpyxl 3.1 (archivo `.xlsx`) |
+| Frontend | HTML5 + CSS3 + JavaScript (sin frameworks) |
+| Concurrencia | `threading.Lock` |
+
+---
+
+## Instalación y uso
+
+### Windows
+
+1. Instalar [Python 3.10+](https://www.python.org/downloads/) marcando **"Add Python to PATH"**
+2. Descomprimir este repositorio en cualquier carpeta
+3. Doble clic en `iniciar.bat`
+
+El sistema abre automáticamente en `http://localhost:5000`. La primera ejecución tarda 1–2 minutos instalando dependencias.
+
+### Linux / macOS
 
 ```bash
+git clone https://github.com/TU-USUARIO/inventario-medicamentos.git
+cd inventario-medicamentos
 chmod +x iniciar.sh
 ./iniciar.sh
 ```
 
-Luego abre http://localhost:5000
+Luego abrir `http://localhost:5000`.
+
+> Para detener el servidor: `Ctrl + C` en la terminal.
 
 ---
 
-## 📁 Estructura del proyecto
+## Respaldo de datos
 
-```
-inventario-medicamentos/
-│
-├── app.py                  # Servidor Flask (Python)
-├── requirements.txt        # Dependencias de Python
-├── iniciar.bat             # Lanzador para Windows (un solo clic)
-├── iniciar.sh              # Lanzador para Linux / macOS
-├── README.md               # Este archivo
-│
-├── data/
-│   └── inventario.xlsx     # Base de datos Excel (se crea al iniciar)
-│
-├── templates/
-│   └── index.html          # Interfaz principal
-│
-└── static/
-    ├── css/styles.css      # Estilos
-    └── js/script.js        # Lógica del navegador
-```
+El único archivo que contiene datos es `data/inventario.xlsx`. Para respaldarlo:
+
+- **Manual:** copiar el archivo a un USB, OneDrive o Google Drive periódicamente
+- **Automático:** colocar toda la carpeta del proyecto dentro de una carpeta sincronizada de OneDrive o Google Drive
 
 ---
 
-## 🗂️ Base de datos: el archivo Excel
+## Solución de problemas
 
-El archivo `data/inventario.xlsx` se crea automáticamente la primera vez que
-inicias el sistema. Contiene 4 hojas:
-
-| Hoja           | Contenido                                                  |
-|----------------|------------------------------------------------------------|
-| **Inventario** | Stock actual de cada medicamento                           |
-| **Entradas**   | Historial de medicamentos recibidos                        |
-| **Salidas**    | Historial de medicamentos entregados                       |
-| **Reportes**   | Configuración (ej. umbral global de bajo stock)            |
-
-Puedes:
-- **Abrirlo con Excel o LibreOffice** para revisar los datos manualmente.
-- **Hacer copias de respaldo** copiando el archivo a otra carpeta o a una
-  memoria USB.
-- **Subirlo manualmente a OneDrive / Google Drive** cuando quieras tener una
-  copia en la nube (no es necesario para que el sistema funcione).
-
-> ⚠️ **Cierra Excel antes de usar el sistema.** Si tienes el archivo abierto
-> en Excel mientras el sistema intenta escribir en él, se generará un error.
+| Error | Solución |
+|-------|----------|
+| `Python no está en el PATH` | Reinstalar Python marcando "Add Python to PATH" |
+| `Permission denied` al guardar | Cerrar el archivo `.xlsx` en Excel antes de usar el sistema |
+| El navegador no abre solo | Abrir `http://localhost:5000` manualmente |
+| Puerto 5000 ocupado | Cambiar `port=5000` por `port=5001` en la última línea de `app.py` |
+| Usar desde otra PC en la red | Cambiar `host="127.0.0.1"` por `host="0.0.0.0"` en `app.py` y conectar desde `http://IP-del-servidor:5000` |
 
 ---
 
-## ✨ Funciones del sistema
+## Posibles mejoras (v2)
 
-### 📊 Dashboard
-- Total de medicamentos registrados.
-- Unidades totales en stock.
-- Conteo de medicamentos con bajo stock y agotados.
-- Entradas y entregas del mes actual.
-- Top 5 medicamentos más entregados.
-- Alertas de bajo stock (las 5 más urgentes).
-
-### 📦 Inventario
-- Lista de todos los medicamentos disponibles.
-- Búsqueda instantánea por nombre u observación.
-- Indicadores visuales: **OK / Bajo stock / Agotado**.
-- Botón para eliminar un medicamento del inventario.
-
-### ⬇️ Agregar entrada
-- Registrar nuevos lotes de medicamentos.
-- Si el medicamento ya existe, **suma** a la cantidad actual.
-- Si es nuevo, lo **crea** automáticamente.
-- Permite definir un **stock mínimo personalizado** para alertas.
-
-### ⬆️ Entregar
-- Selección del medicamento desde una lista (solo muestra los que tienen stock).
-- Muestra el **stock disponible** al seleccionar.
-- **Confirmación obligatoria** antes de descontar.
-- Registra: medicamento, cantidad, fecha, persona que recibe y observaciones.
-- **Bloquea entregas** si la cantidad pedida supera el stock.
-
-### 📈 Reportes
-- Filtros por **rango de fechas** y por **nombre de medicamento**.
-- Entregas totales por mes (con gráfico de barras).
-- Ranking de medicamentos más entregados.
-- Historial completo filtrado.
-- **Exportar reporte filtrado a Excel** con un clic.
-
-### 📥 Exportar
-- Botón "Descargar Excel" en la barra lateral: exporta toda la base de datos.
-- Botón "Exportar Excel" en Reportes: exporta solo los datos filtrados.
+- Migrar almacenamiento a SQLite para soporte multiusuario real
+- Autenticación de usuarios con roles (administrador / farmacéutico)
+- Modo multi-sucursal con sincronización por red local
+- PWA para instalación en dispositivos móviles sin app store
 
 ---
 
-## 💾 ¿Cómo respaldar mis datos?
+## Licencia
 
-**Opción A — manual (recomendada):**
-Copia el archivo `data/inventario.xlsx` a un USB, OneDrive o Google Drive
-cada cierto tiempo.
-
-**Opción B — automática:**
-Coloca toda la carpeta `inventario-medicamentos` dentro de una carpeta
-sincronizada de OneDrive, Dropbox o Google Drive. Cada cambio se subirá
-automáticamente a la nube.
-
----
-
-## ☁️ ¿Y "Excel Online"?
-
-Excel Online (Microsoft 365 web) **no permite que un programa de escritorio
-lea y escriba en sus archivos sin una cuenta empresarial y configuración
-compleja con Microsoft Graph API**, lo cual rompería la regla de "sin
-servicios pagos".
-
-La solución implementada usa el **mismo formato `.xlsx`** que usa Excel
-Online, así que puedes:
-1. Trabajar con el sistema localmente.
-2. Cuando quieras, subir `data/inventario.xlsx` a OneDrive arrastrándolo
-   al navegador.
-3. Abrirlo desde cualquier lugar con Excel Online (modo lectura).
-
-Si en el futuro quieres edición simultánea desde varios lugares, la mejor
-opción gratuita es poner la carpeta dentro de OneDrive o Google Drive
-sincronizado.
-
----
-
-## ❓ Solución de problemas
-
-**"Python no esta instalado o no esta en el PATH"**
-→ Instala Python desde python.org y **marca "Add Python to PATH"**
-durante la instalación.
-
-**"Permission denied" al guardar el Excel**
-→ Cierra el archivo `data/inventario.xlsx` en Excel y vuelve a intentar.
-
-**El navegador no abre solo**
-→ Abre manualmente http://localhost:5000
-
-**Puerto 5000 ocupado**
-→ Cambia la línea `port=5000` al final de `app.py` por `port=5001`
-y abre http://localhost:5001
-
-**Quiero usarlo desde otra computadora en la misma red local**
-→ En `app.py`, cambia `host="127.0.0.1"` por `host="0.0.0.0"`. Luego,
-desde otra máquina, abre `http://IP-de-tu-laptop:5000`.
-
----
-
-## 🔧 Tecnologías usadas
-
-| Componente | Tecnología                       |
-|------------|----------------------------------|
-| Backend    | Python 3 + Flask                 |
-| Excel      | openpyxl                         |
-| Frontend   | HTML5 + CSS3 + JavaScript        |
-| Datos      | Archivo .xlsx local              |
-
-**Sin Docker, sin Kubernetes, sin servicios pagos, sin APKs.**
-
----
-
-## 📜 Licencia
-
-Uso libre para tu farmacia, clínica o uso personal.
+MIT — uso libre para farmacias, clínicas y proyectos personales.
