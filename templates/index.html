@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario de Medicamentos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%8A%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+
+<!-- BARRA LATERAL -->
+<aside class="sidebar">
+    <div class="brand">
+        <div class="brand-icon">💊</div>
+        <div>
+            <div class="brand-title">Farmacia</div>
+            <div class="brand-subtitle">Inventario</div>
+        </div>
+    </div>
+
+    <nav class="nav">
+        <button class="nav-item active" data-tab="dashboard">
+            <span class="nav-icon">📊</span> Dashboard
+        </button>
+        <button class="nav-item" data-tab="inventario">
+            <span class="nav-icon">📦</span> Inventario
+        </button>
+        <button class="nav-item" data-tab="entrada">
+            <span class="nav-icon">⬇️</span> Agregar entrada
+        </button>
+        <button class="nav-item" data-tab="entrega">
+            <span class="nav-icon">⬆️</span> Entregar
+        </button>
+        <button class="nav-item" data-tab="reportes">
+            <span class="nav-icon">📈</span> Reportes
+        </button>
+    </nav>
+
+    <div class="sidebar-footer">
+        <button class="btn-ghost" id="btn-exportar-todo">
+            <span>📥</span> Descargar Excel
+        </button>
+    </div>
+</aside>
+
+<!-- CONTENIDO PRINCIPAL -->
+<main class="main">
+
+    <!-- ========== DASHBOARD ========== -->
+    <section class="tab-content active" id="tab-dashboard">
+        <header class="page-header">
+            <div>
+                <h1>Dashboard</h1>
+                <p class="subtitle">Resumen general del inventario</p>
+            </div>
+            <button class="btn-secondary" id="btn-refrescar-dash">↻ Actualizar</button>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card stat-teal">
+                <div class="stat-icon">💊</div>
+                <div class="stat-info">
+                    <div class="stat-label">Medicamentos</div>
+                    <div class="stat-value" id="stat-medicamentos">—</div>
+                </div>
+            </div>
+            <div class="stat-card stat-blue">
+                <div class="stat-icon">📦</div>
+                <div class="stat-info">
+                    <div class="stat-label">Unidades en stock</div>
+                    <div class="stat-value" id="stat-unidades">—</div>
+                </div>
+            </div>
+            <div class="stat-card stat-amber">
+                <div class="stat-icon">⚠️</div>
+                <div class="stat-info">
+                    <div class="stat-label">Bajo stock</div>
+                    <div class="stat-value" id="stat-bajo">—</div>
+                </div>
+            </div>
+            <div class="stat-card stat-red">
+                <div class="stat-icon">🚫</div>
+                <div class="stat-info">
+                    <div class="stat-label">Agotados</div>
+                    <div class="stat-value" id="stat-agotados">—</div>
+                </div>
+            </div>
+            <div class="stat-card stat-green">
+                <div class="stat-icon">⬇️</div>
+                <div class="stat-info">
+                    <div class="stat-label">Entradas este mes</div>
+                    <div class="stat-value" id="stat-entradas-mes">—</div>
+                </div>
+            </div>
+            <div class="stat-card stat-purple">
+                <div class="stat-icon">⬆️</div>
+                <div class="stat-info">
+                    <div class="stat-label">Entregas este mes</div>
+                    <div class="stat-value" id="stat-salidas-mes">—</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>🔥 Más entregados</h3>
+                <div id="top-entregados" class="list">
+                    <div class="empty">Sin datos todavía.</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>⚠️ Alertas de bajo stock</h3>
+                <div id="alertas-stock" class="list">
+                    <div class="empty">Sin alertas. Todo en orden.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== INVENTARIO ========== -->
+    <section class="tab-content" id="tab-inventario">
+        <header class="page-header">
+            <div>
+                <h1>Inventario</h1>
+                <p class="subtitle">Lista completa de medicamentos disponibles</p>
+            </div>
+            <div class="header-actions">
+                <input type="search" id="buscar-inv" class="input" placeholder="🔍 Buscar medicamento...">
+                <button class="btn-secondary" id="btn-refrescar-inv">↻</button>
+            </div>
+        </header>
+
+        <div class="card">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Medicamento</th>
+                        <th>Cantidad</th>
+                        <th>Stock mínimo</th>
+                        <th>Estado</th>
+                        <th>Última actualización</th>
+                        <th>Observaciones</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-inventario">
+                    <tr><td colspan="7" class="empty">Cargando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- ========== ENTRADA ========== -->
+    <section class="tab-content" id="tab-entrada">
+        <header class="page-header">
+            <div>
+                <h1>Agregar entrada</h1>
+                <p class="subtitle">Registrar medicamentos que ingresan al inventario</p>
+            </div>
+        </header>
+
+        <div class="form-layout">
+            <div class="card">
+                <form id="form-entrada" class="form">
+                    <div class="form-group">
+                        <label>Nombre del medicamento *</label>
+                        <input type="text" id="ent-nombre" required placeholder="Ej. Paracetamol 500mg" list="lista-medicamentos">
+                        <datalist id="lista-medicamentos"></datalist>
+                        <small>Si ya existe, se suma a la cantidad actual. Si no, se crea.</small>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Cantidad *</label>
+                            <input type="number" id="ent-cantidad" required min="1" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Stock mínimo (alerta)</label>
+                            <input type="number" id="ent-stock-min" min="0" placeholder="10">
+                            <small>Avisar cuando baje de este nivel.</small>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Fecha</label>
+                        <input type="date" id="ent-fecha">
+                        <small>Se usa la fecha de hoy si lo dejas vacío.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Observaciones</label>
+                        <textarea id="ent-obs" rows="3" placeholder="Lote, proveedor, vencimiento, etc."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn-primary">✓ Registrar entrada</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h3>Últimas entradas</h3>
+                <div id="historial-entradas" class="list">
+                    <div class="empty">Sin entradas registradas.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== ENTREGA ========== -->
+    <section class="tab-content" id="tab-entrega">
+        <header class="page-header">
+            <div>
+                <h1>Entregar medicamento</h1>
+                <p class="subtitle">Descontar del inventario y registrar al paciente</p>
+            </div>
+        </header>
+
+        <div class="form-layout">
+            <div class="card">
+                <form id="form-salida" class="form">
+                    <div class="form-group">
+                        <label>Medicamento *</label>
+                        <select id="sal-nombre" required>
+                            <option value="">— Selecciona —</option>
+                        </select>
+                        <small id="sal-stock-disp" class="stock-disp"></small>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Cantidad a entregar *</label>
+                            <input type="number" id="sal-cantidad" required min="1" placeholder="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha</label>
+                            <input type="date" id="sal-fecha">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Recibido por *</label>
+                        <input type="text" id="sal-recibido" required placeholder="Nombre del paciente o destinatario">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Observaciones</label>
+                        <textarea id="sal-obs" rows="3" placeholder="Indicación médica, dosis, etc."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn-primary btn-danger">⬆ Confirmar entrega</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h3>Últimas entregas</h3>
+                <div id="historial-salidas" class="list">
+                    <div class="empty">Sin entregas registradas.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== REPORTES ========== -->
+    <section class="tab-content" id="tab-reportes">
+        <header class="page-header">
+            <div>
+                <h1>Reportes</h1>
+                <p class="subtitle">Análisis y filtros del historial</p>
+            </div>
+        </header>
+
+        <div class="card">
+            <h3>Filtros</h3>
+            <div class="filter-row">
+                <div class="form-group">
+                    <label>Desde</label>
+                    <input type="date" id="rep-desde">
+                </div>
+                <div class="form-group">
+                    <label>Hasta</label>
+                    <input type="date" id="rep-hasta">
+                </div>
+                <div class="form-group">
+                    <label>Medicamento</label>
+                    <input type="text" id="rep-med" placeholder="Filtrar por nombre">
+                </div>
+                <div class="form-group filter-actions">
+                    <button class="btn-primary" id="btn-aplicar-filtros">Aplicar</button>
+                    <button class="btn-secondary" id="btn-limpiar-filtros">Limpiar</button>
+                    <button class="btn-secondary" id="btn-exportar-rep">📥 Exportar Excel</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3>📅 Entregas por mes</h3>
+                <div id="reporte-por-mes" class="list">
+                    <div class="empty">Sin datos.</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>🏆 Top medicamentos entregados</h3>
+                <div id="reporte-top" class="list">
+                    <div class="empty">Sin datos.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📋 Historial de entregas filtradas</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Medicamento</th>
+                        <th>Cantidad</th>
+                        <th>Recibido por</th>
+                        <th>Observaciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-reporte">
+                    <tr><td colspan="5" class="empty">Aplica filtros para ver resultados.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</main>
+
+<!-- MODAL DE CONFIRMACIÓN -->
+<div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal">
+        <h3 id="modal-titulo">Confirmar acción</h3>
+        <p id="modal-mensaje">¿Estás seguro?</p>
+        <div class="modal-actions">
+            <button class="btn-secondary" id="modal-cancelar">Cancelar</button>
+            <button class="btn-primary btn-danger" id="modal-confirmar">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- TOAST DE NOTIFICACIONES -->
+<div class="toast" id="toast"></div>
+
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+# ==========================================================
+#  .gitignore - Sistema de Inventario de Medicamentos
+# ==========================================================
+
+# --- Entorno virtual (lo crea iniciar.sh / iniciar.bat) ---
+# Nunca se sube: cada máquina genera el suyo con requirements.txt
+venv/
+.venv/
+env/
+ENV/
+
+# --- Base de datos real (datos sensibles del inventario) ---
+# El archivo se crea solo al iniciar la app. NO debe ir a un
+# repositorio público. Mantenemos data/.gitkeep para conservar
+# la carpeta vacía en GitHub.
+data/*.xlsx
+data/*.xls
+
+# --- Cachés y compilados de Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Secretos y variables de entorno ---
+.env
+.env.*
+*.pem
+*.key
+
+# --- Archivos del sistema operativo ---
+.DS_Store
+Thumbs.db
+
+# --- Editores / IDEs ---
+.vscode/
+.idea/
+*.swp
+
+# --- Herramientas locales ---
+.claude/
+
+# --- Logs ---
+*.log
